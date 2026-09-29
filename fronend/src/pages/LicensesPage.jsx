@@ -12,10 +12,12 @@ import { useToast } from '../components/ui/Toast'
 const columns = [
   { key: 'title', label: 'License Agreement' },
   { key: 'licensee_name', label: 'Licensee Partner' },
+  { key: 'license_type', label: 'Type', render: (r) => <span className="capitalize text-[10px] font-bold bg-paper px-2 py-0.5 rounded">{(r.license_type || 'non_exclusive').replace('_', ' ')}</span> },
   { key: 'royalty_rate', label: 'Royalty Rate', render: (r) => r.royalty_rate ? `${r.royalty_rate}%` : '—' },
   { key: 'revenue_ytd', label: 'YTD Revenue (Rs.)', render: (r) => r.revenue_ytd ? `Rs. ${r.revenue_ytd.toLocaleString()}` : '—' },
   { key: 'status', label: 'Status', render: (r) => <StatusDot status={r.status} /> },
-  { key: 'signing_date', label: 'Signing Date', render: (r) => r.signing_date || '—' },
+  { key: 'territory', label: 'Territory', render: (r) => r.territory || '—' },
+  { key: 'signing_date', label: 'Signed', render: (r) => r.signing_date || '—' },
 ]
 
 export default function LicensesPage() {
@@ -124,7 +126,7 @@ export default function LicensesPage() {
       {/* License Details Modal */}
       <Modal isOpen={!!selectedLicense} onClose={() => setSelectedLicense(null)} title="Licensing Contract Details">
         {selectedLicense && (
-          <div className="space-y-4 text-xs">
+          <div className="space-y-4 text-xs max-h-[65vh] overflow-y-auto pr-1">
             <div>
               <span className="text-ink/45 text-[10px] font-bold uppercase">License Agreement</span>
               <p className="text-sm font-bold text-ink/80 mt-1">{selectedLicense.title}</p>
@@ -135,20 +137,74 @@ export default function LicensesPage() {
                 <p className="font-bold text-ink/80 mt-1">{selectedLicense.licensee_name}</p>
               </div>
               <div>
+                <span className="text-ink/45 text-[10px] font-bold uppercase">License Type</span>
+                <p className="font-bold text-ink/80 mt-1 capitalize">{(selectedLicense.license_type || 'non_exclusive').replace('_', ' ')}</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-4">
+              <div>
                 <span className="text-ink/45 text-[10px] font-bold uppercase">Royalty Rate</span>
                 <p className="font-bold text-ink/80 mt-1">{selectedLicense.royalty_rate}%</p>
+              </div>
+              <div>
+                <span className="text-ink/45 text-[10px] font-bold uppercase">YTD Revenue</span>
+                <p className="font-bold text-indigo mt-1 tabular">Rs. {selectedLicense.revenue_ytd?.toLocaleString()}</p>
+              </div>
+              <div>
+                <span className="text-ink/45 text-[10px] font-bold uppercase">Total Revenue</span>
+                <p className="font-bold text-ink/80 mt-1 tabular">Rs. {(selectedLicense.total_revenue || selectedLicense.revenue_ytd)?.toLocaleString()}</p>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <span className="text-ink/45 text-[10px] font-bold uppercase">YTD Revenue (Rs.)</span>
-                <p className="font-bold text-ink/80 mt-1 tabular">Rs. {selectedLicense.revenue_ytd?.toLocaleString()}</p>
+                <span className="text-ink/45 text-[10px] font-bold uppercase">Territory</span>
+                <p className="font-bold text-ink/80 mt-1">{selectedLicense.territory || '—'}</p>
               </div>
+              <div>
+                <span className="text-ink/45 text-[10px] font-bold uppercase">Field of Use</span>
+                <p className="font-bold text-ink/80 mt-1">{selectedLicense.field_of_use || '—'}</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
               <div>
                 <span className="text-ink/45 text-[10px] font-bold uppercase">Signing Date</span>
                 <p className="font-bold text-ink/80 mt-1 tabular">{selectedLicense.signing_date || '—'}</p>
               </div>
+              <div>
+                <span className="text-ink/45 text-[10px] font-bold uppercase">Expiry Date</span>
+                <p className="font-bold text-ink/80 mt-1 tabular">{selectedLicense.expiry_date || '—'}</p>
+              </div>
             </div>
+            
+            {/* Revenue Sharing Breakdown */}
+            {(selectedLicense.inventor_share_percent || selectedLicense.department_share_percent || selectedLicense.university_share_percent) && (
+              <div className="p-4 rounded-xl bg-paper border border-line">
+                <span className="text-[10px] font-bold text-ink/70 uppercase tracking-wider block mb-3">Revenue Sharing Distribution</span>
+                <div className="grid grid-cols-3 gap-3 text-center">
+                  <div className="p-2 rounded-lg bg-indigo/5 border border-indigo/10">
+                    <p className="text-lg font-black text-indigo">{selectedLicense.inventor_share_percent || 0}%</p>
+                    <p className="text-[9px] font-bold text-ink/50 uppercase">Inventors</p>
+                  </div>
+                  <div className="p-2 rounded-lg bg-teal/5 border border-teal/10">
+                    <p className="text-lg font-black text-teal">{selectedLicense.department_share_percent || 0}%</p>
+                    <p className="text-[9px] font-bold text-ink/50 uppercase">Department</p>
+                  </div>
+                  <div className="p-2 rounded-lg bg-amber/5 border border-amber/10">
+                    <p className="text-lg font-black text-amber">{selectedLicense.university_share_percent || 0}%</p>
+                    <p className="text-[9px] font-bold text-ink/50 uppercase">University</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Milestone Tracking */}
+            {selectedLicense.next_milestone_date && (
+              <div className="p-3 rounded-xl bg-amber-50 border border-amber-200">
+                <span className="text-[10px] font-bold text-amber-900 uppercase">Next Milestone</span>
+                <p className="text-xs text-amber-800 mt-1 font-semibold">{selectedLicense.next_milestone_date}: {selectedLicense.next_milestone_description || 'Milestone pending'}</p>
+              </div>
+            )}
+            
             <div className="flex items-center gap-3 border-t border-line pt-4 justify-between">
               <div className="flex items-center gap-2">
                 <span className="text-ink/45 text-[10px] font-bold uppercase">Contract Status:</span>
@@ -162,6 +218,7 @@ export default function LicensesPage() {
               >
                 <option value="active">Active</option>
                 <option value="pending">Pending</option>
+                <option value="negotiation">Negotiation</option>
                 <option value="expired">Expired</option>
                 <option value="terminated">Terminated</option>
               </Select>
@@ -172,7 +229,7 @@ export default function LicensesPage() {
 
       {/* Create License Modal */}
       <Modal isOpen={open} onClose={() => setOpen(false)} title="New Patent Licensing Contract">
-        <form onSubmit={handleCreate} className="space-y-4">
+        <form onSubmit={handleCreate} className="space-y-4 max-h-[65vh] overflow-y-auto pr-1">
           <Input
             label="License Title"
             placeholder="e.g. Edge Scheduler Tech Transfer"
@@ -188,6 +245,33 @@ export default function LicensesPage() {
             required
           />
           <div className="grid grid-cols-2 gap-4">
+            <Select
+              label="License Type"
+              value={form.license_type || 'non_exclusive'}
+              onChange={(e) => setForm({ ...form, license_type: e.target.value })}
+              required
+            >
+              <option value="exclusive">Exclusive</option>
+              <option value="non_exclusive">Non-Exclusive</option>
+              <option value="field_of_use">Field of Use</option>
+              <option value="territory_limited">Territory Limited</option>
+              <option value="option">Option</option>
+              <option value="research">Research License</option>
+            </Select>
+            <Input
+              label="Territory"
+              placeholder="e.g. Worldwide, APAC Region"
+              value={form.territory || ''}
+              onChange={(e) => setForm({ ...form, territory: e.target.value })}
+            />
+          </div>
+          <Input
+            label="Field of Use"
+            placeholder="e.g. Consumer electronics and smart home devices"
+            value={form.field_of_use || ''}
+            onChange={(e) => setForm({ ...form, field_of_use: e.target.value })}
+          />
+          <div className="grid grid-cols-3 gap-4">
             <Input
               label="Royalty Rate (%)"
               type="number"
@@ -197,33 +281,85 @@ export default function LicensesPage() {
               required
             />
             <Input
-              label="YTD Revenue (USD)"
+              label="Upfront Fee (Rs.)"
+              type="number"
+              value={form.upfront_fee || ''}
+              onChange={(e) => setForm({ ...form, upfront_fee: e.target.value })}
+            />
+            <Input
+              label="Min Annual Royalty (Rs.)"
+              type="number"
+              value={form.minimum_annual_royalty || ''}
+              onChange={(e) => setForm({ ...form, minimum_annual_royalty: e.target.value })}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <Input
+              label="YTD Revenue (Rs.)"
               type="number"
               value={form.revenue_ytd}
               onChange={(e) => setForm({ ...form, revenue_ytd: e.target.value })}
               required
             />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
             <Select
               label="Status"
               value={form.status}
               onChange={(e) => setForm({ ...form, status: e.target.value })}
               required
             >
+              <option value="negotiation">Negotiation</option>
+              <option value="pending">Pending Signature</option>
               <option value="active">Active</option>
-              <option value="pending">Pending</option>
               <option value="expired">Expired</option>
               <option value="terminated">Terminated</option>
             </Select>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
             <Input
               label="Signing Date"
               type="date"
               value={form.signing_date}
               onChange={(e) => setForm({ ...form, signing_date: e.target.value })}
             />
+            <Input
+              label="Expiry Date"
+              type="date"
+              value={form.expiry_date || ''}
+              onChange={(e) => setForm({ ...form, expiry_date: e.target.value })}
+            />
           </div>
-          <Button type="submit" className="w-full" loading={submitting}>Log License</Button>
+          
+          <div className="p-4 rounded-xl bg-paper border border-line">
+            <span className="text-[10px] font-bold text-ink/70 uppercase tracking-wider block mb-3">Revenue Sharing Distribution</span>
+            <div className="grid grid-cols-3 gap-3">
+              <Input
+                label="Inventor %"
+                type="number"
+                step="0.1"
+                value={form.inventor_share_percent || ''}
+                onChange={(e) => setForm({ ...form, inventor_share_percent: e.target.value })}
+                placeholder="40"
+              />
+              <Input
+                label="Department %"
+                type="number"
+                step="0.1"
+                value={form.department_share_percent || ''}
+                onChange={(e) => setForm({ ...form, department_share_percent: e.target.value })}
+                placeholder="20"
+              />
+              <Input
+                label="University %"
+                type="number"
+                step="0.1"
+                value={form.university_share_percent || ''}
+                onChange={(e) => setForm({ ...form, university_share_percent: e.target.value })}
+                placeholder="40"
+              />
+            </div>
+          </div>
+
+          <Button type="submit" className="w-full" loading={submitting}>Create License Agreement</Button>
         </form>
       </Modal>
     </>

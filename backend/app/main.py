@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.database import init_db
 from app.routers import (
     auth, users, projects, agreements, mous, innovation_club, noticeboard, ipr_violations,
-    disclosures, patents, deadlines, licenses
+    disclosures, patents, deadlines, licenses, audit_logs
 )
 
 
@@ -38,10 +38,9 @@ app.include_router(disclosures.router)
 app.include_router(patents.router)
 app.include_router(deadlines.router)
 app.include_router(licenses.router)
+app.include_router(audit_logs.router)
 
 
 @app.get("/health")
 def health():
-    # reload trigger
     return {"status": "ok"}
-

@@ -9,6 +9,7 @@ import AnimatedCounter from '../components/ui/AnimatedCounter'
 import { useToast } from '../components/ui/Toast'
 import { useAuth } from '../auth/AuthContext'
 import { listUsers, updateUser } from '../api/auth'
+import { listAuditLogs } from '../api/auditLogs'
 
 export default function AdminPage() {
   const { user: currentUser } = useAuth()
@@ -54,18 +55,30 @@ export default function AdminPage() {
     }
   }
 
+  const loadAuditLogs = async () => {
+    try {
+      setLoadingLogs(true)
+      const data = await listAuditLogs(null, 100)
+      // Transform audit log data to match table format
+      const transformedLogs = data.map(l => ({
+        id: l.id,
+        user: l.user_name,
+        role: l.user_role,
+        action: `${l.action} ${l.entity_type}${l.entity_title ? ': ' + l.entity_title : ''}${l.details ? ' — ' + l.details : ''}`,
+        time: l.created_at ? new Date(l.created_at).toISOString().replace('T', ' ').substring(0, 19) : '—'
+      }))
+      setLogs(transformedLogs)
+    } catch (err) {
+      // Fallback to empty if no audit logs yet
+      setLogs([])
+    } finally {
+      setLoadingLogs(false)
+    }
+  }
+
   useEffect(() => {
     loadUsers()
-
-    // Pre-seeded role logs for admin visibility
-    const mockLogs = [
-      { id: 1, user: "Aisha Bennett", role: "ttc_staff", action: "Promoted PAT-8841 status to Office Action", time: "2026-07-13 08:35:12" },
-      { id: 2, user: "Elena Brooks", role: "super_admin", action: "Assigned Attorney Aisha Bennett to PAT-8540 case", time: "2026-07-13 08:22:45" },
-      { id: 3, user: "Rohan Gupta", role: "ttc_staff", action: "Created License Apple Inc. agreement", time: "2026-07-13 07:11:03" },
-      { id: 4, user: "Prof. Daniel Shaw", role: "faculty", action: "Initiated Invention Disclosure DISC-1021", time: "2026-07-13 06:45:18" }
-    ]
-    setLogs(mockLogs)
-    setLoadingLogs(false)
+    loadAuditLogs()
   }, [])
 
   const triggerReset = () => {

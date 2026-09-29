@@ -8,6 +8,7 @@ from app.models.prosecution import ProsecutionEvent, ProsecutionEventCreate, Pro
 from app.models.user import User
 from app.models.enums import PatentStatus
 from app.core.deps import get_current_user
+from app.routers.audit_logs import log_action
 
 router = APIRouter(prefix="/patents", tags=["Patent Portfolio"])
 
@@ -27,11 +28,15 @@ def _generate_patent_number(session: Session) -> str:
 @router.get("", response_model=List[PatentRead])
 def list_patents(
     status: Optional[str] = None,
+    jurisdiction: Optional[str] = None,
     session: Session = Depends(get_session)
 ):
     query = select(Patent)
     if status:
         query = query.where(Patent.status == status)
+    if jurisdiction:
+        query = query.where(Patent.jurisdiction.contains(jurisdiction))
+    query = query.order_by(Patent.created_at.desc())
     return session.exec(query).all()
 
 @router.post("", response_model=PatentRead)
@@ -47,6 +52,15 @@ def create_patent(
     data.setdefault("status", PatentStatus.drafting)
     patent = Patent(**data, created_by_id=user_id)
     session.add(patent)
+    
+    log_action(
+        session, current_user,
+        action="created",
+        entity_type="patent",
+        entity_title=payload.title,
+        details=f"Patent #{data.get('patent_number')}, Jurisdiction: {data.get('jurisdiction', 'N/A')}"
+    )
+    
     session.commit()
     session.refresh(patent)
     return patent
@@ -63,20 +77,32 @@ def update_patent_status(
     patent_id: int,
     payload: PatentStatusUpdate,
     session: Session = Depends(get_session),
-    _: Optional[User] = Depends(get_current_user)
+    current_user: Optional[User] = Depends(get_current_user)
 ):
     patent = session.get(Patent, patent_id)
     if not patent:
         raise HTTPException(status_code=404, detail="Patent not found")
     if patent.status == PatentStatus.granted and payload.status != PatentStatus.granted:
         raise HTTPException(status_code=400, detail="Granted patents cannot be moved back to a non-granted status")
+    
+    old_status = patent.status
     patent.status = payload.status
     session.add(patent)
+    
+    log_action(
+        session, current_user,
+        action="status_changed",
+        entity_type="patent",
+        entity_id=patent_id,
+        entity_title=patent.title,
+        details=f"Status: {old_status} → {payload.status}"
+    )
+    
     session.commit()
     session.refresh(patent)
     return patent
 
-# Prosecution Timeline Events nested under Patents or stand-alone
+# Prosecution Timeline Events nested under Patents
 @router.get("/{patent_id}/timeline", response_model=List[ProsecutionEventRead])
 def get_patent_timeline(patent_id: int, session: Session = Depends(get_session)):
     query = select(ProsecutionEvent).where(ProsecutionEvent.patent_id == patent_id).order_by(ProsecutionEvent.event_date.asc())
@@ -87,7 +113,7 @@ def add_patent_timeline_event(
     patent_id: int,
     payload: ProsecutionEventCreate,
     session: Session = Depends(get_session),
-    _: Optional[User] = Depends(get_current_user)
+    current_user: Optional[User] = Depends(get_current_user)
 ):
     patent = session.get(Patent, patent_id)
     if not patent:
@@ -97,6 +123,16 @@ def add_patent_timeline_event(
     event = ProsecutionEvent(**payload.dict())
     event.patent_id = patent_id
     session.add(event)
+    
+    log_action(
+        session, current_user,
+        action="timeline_event_added",
+        entity_type="patent",
+        entity_id=patent_id,
+        entity_title=patent.title,
+        details=f"Event: {payload.event_title} on {payload.event_date}"
+    )
+    
     session.commit()
     session.refresh(event)
     return event
@@ -106,7 +142,7 @@ def update_patent(
     patent_id: int,
     payload: PatentCreate,
     session: Session = Depends(get_session),
-    _: Optional[User] = Depends(get_current_user)
+    current_user: Optional[User] = Depends(get_current_user)
 ):
     patent = session.get(Patent, patent_id)
     if not patent:
@@ -118,10 +154,48 @@ def update_patent(
         ).first()
         if duplicate:
             raise HTTPException(status_code=400, detail="Patent number already exists")
+    
+    changed_fields = []
     for key, value in update_data.items():
+        if getattr(patent, key, None) != value:
+            changed_fields.append(key)
         setattr(patent, key, value)
-        
+    
     session.add(patent)
+    
+    log_action(
+        session, current_user,
+        action="updated",
+        entity_type="patent",
+        entity_id=patent_id,
+        entity_title=patent.title,
+        details=f"Updated fields: {', '.join(changed_fields[:10])}"
+    )
+    
     session.commit()
     session.refresh(patent)
     return patent
+
+@router.delete("/{patent_id}")
+def delete_patent(
+    patent_id: int,
+    session: Session = Depends(get_session),
+    current_user: Optional[User] = Depends(get_current_user)
+):
+    patent = session.get(Patent, patent_id)
+    if not patent:
+        raise HTTPException(status_code=404, detail="Patent not found")
+    if patent.status == PatentStatus.granted:
+        raise HTTPException(status_code=400, detail="Cannot delete a granted patent")
+    
+    log_action(
+        session, current_user,
+        action="deleted",
+        entity_type="patent",
+        entity_id=patent_id,
+        entity_title=patent.title,
+    )
+    
+    session.delete(patent)
+    session.commit()
+    return {"detail": "Patent deleted"}
