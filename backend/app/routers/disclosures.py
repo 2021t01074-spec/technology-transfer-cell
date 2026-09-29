@@ -4,6 +4,7 @@ from sqlmodel import Session, select
 from app.database import get_session
 from app.models.disclosure import InventionDisclosure, DisclosureCreate, DisclosureRead, DisclosureStatusUpdate
 from app.models.user import User
+from app.models.enums import DisclosureStatus
 from app.core.deps import get_current_user
 
 router = APIRouter(prefix="/disclosures", tags=["Invention Disclosures"])
@@ -48,6 +49,8 @@ def update_disclosure_status(
     disclosure = session.get(InventionDisclosure, disclosure_id)
     if not disclosure:
         raise HTTPException(status_code=404, detail="Disclosure not found")
+    if disclosure.status == DisclosureStatus.ready_for_filing and payload.status == DisclosureStatus.needs_revision:
+        raise HTTPException(status_code=400, detail="Ready-for-filing disclosures cannot regress to needs_revision")
     disclosure.status = payload.status
     session.add(disclosure)
     session.commit()

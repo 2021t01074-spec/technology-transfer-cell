@@ -8,50 +8,28 @@ import Select from '../components/ui/Select'
 import Input from '../components/ui/Input'
 import Modal from '../components/ui/Modal'
 import { useToast } from '../components/ui/Toast'
-
-const columns = [
-  { key: 'patent_number', label: 'Case Number', render: (r) => <span className="font-bold text-indigo">{r.patent_number}</span> },
-  { key: 'title', label: 'Patent Title' },
-  { key: 'jurisdiction', label: 'Jurisdiction' },
-  { key: 'attorney', label: 'Attorney' },
-  { key: 'status', label: 'Status', render: (r) => <StatusDot status={r.status} /> },
-  { key: 'next_due_date', label: 'Next Due', render: (r) => r.next_due_date || '—' },
-]
+import PatentApplicationWizard from './patents/PatentApplicationWizard'
 
 export default function PatentsPage() {
   const { addToast } = useToast()
+  
+  // Navigation State
+  const [viewMode, setViewMode] = useState('dashboard') // 'dashboard' | 'wizard'
+  const [activeDashboardTab, setActiveDashboardTab] = useState('my_applications') // 'my_applications' | 'drafts' | 'submitted' | 'tracking' | 'messages' | 'payments' | 'documents'
+
   const [patents, setPatents] = useState([])
   const [selectedPatent, setSelectedPatent] = useState(null)
-  const [selectedTab, setSelectedTab] = useState('overview')
-  const [showAdvanced, setShowAdvanced] = useState(true)
   const [timeline, setTimeline] = useState([])
   const [loading, setLoading] = useState(true)
   const [timelineLoading, setTimelineLoading] = useState(false)
   const [statusUpdating, setStatusUpdating] = useState(false)
-
-  // Creation forms
-  const [openCreateModal, setOpenCreateModal] = useState(false)
-  const [createSubmitting, setCreateSubmitting] = useState(false)
-  const [newPatent, setNewPatent] = useState({
-    title: '',
-    patent_number: '',
-    jurisdiction: 'US / PCT',
-    assignee: 'Technology Transfer Cell',
-    attorney: '',
-    budget: '',
-    claims_text: '',
-    legal_notes: '',
-  })
+  const [wizardDraft, setWizardDraft] = useState(null)
 
   // Timeline form
   const [showTimelineForm, setShowTimelineForm] = useState(false)
   const [newEvent, setNewEvent] = useState({ event_title: '', event_date: '', notes: '' })
 
-  // Document upload simulation state
-  const [uploadedDocs, setUploadedDocs] = useState([
-    { name: 'Patent_Abstract_Draft.pdf', size: '2.4 MB', date: '2026-06-15' },
-    { name: 'Claims_Comparison_Report.docx', size: '840 KB', date: '2026-06-20' }
-  ])
+  // Document upload modal state
   const [showDocUploadModal, setShowDocUploadModal] = useState(false)
   const [newDocName, setNewDocName] = useState('')
 
@@ -112,390 +90,418 @@ export default function PatentsPage() {
     }
   }
 
-  async function handlePatentCreate(e) {
-    e.preventDefault()
-    setCreateSubmitting(true)
-    try {
-      const payload = {
-        ...newPatent,
-        budget: newPatent.budget ? parseFloat(newPatent.budget) : 0,
-        filing_date: new Date().toISOString().split('T')[0],
-        next_due_date: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] // 90 days out
-      }
-      const created = await createPatent(payload)
-      setPatents([...patents, created])
-      setSelectedPatent(created)
-      setOpenCreateModal(false)
-      setNewPatent({
-        title: '',
-        patent_number: '',
-        jurisdiction: 'US / PCT',
-        assignee: 'Technology Transfer Cell',
-        attorney: '',
-        budget: '',
-        claims_text: '',
-        legal_notes: '',
-      })
-      addToast('New patent portfolio case initialized!', 'success')
-    } catch (err) {
-      addToast('Failed to initialize patent case.', 'error')
-    } finally {
-      setCreateSubmitting(false)
-    }
+  const resumeDraft = (draft) => {
+    setWizardDraft(draft)
+    setViewMode('wizard')
   }
 
-  const handleDocUpload = (e) => {
-    e.preventDefault()
-    if (!newDocName) return
-    setUploadedDocs([
-      ...uploadedDocs,
-      { name: newDocName, size: '1.2 MB', date: new Date().toISOString().split('T')[0] }
-    ])
-    setNewDocName('')
-    setShowDocUploadModal(false)
-    addToast('Document successfully cataloged.', 'success')
+  // Filter datasets
+  const draftPatents = patents.filter(p => p.is_draft || p.status === 'drafting')
+  const submittedPatents = patents.filter(p => !p.is_draft && p.status !== 'drafting')
+
+  // Table Columns
+  const columns = [
+    {
+      key: 'patent_number',
+      label: 'Application Case #',
+      render: (r) => (
+        <div>
+          <span className="font-bold text-indigo cursor-pointer hover:underline" onClick={() => setSelectedPatent(r)}>
+            {r.patent_number}
+          </span>
+          <span className="block text-[10px] text-ink/50 font-normal">{r.patent_type || 'Utility Patent'}</span>
+        </div>
+      )
+    },
+    {
+      key: 'title',
+      label: 'Title',
+      render: (r) => <span className="font-semibold text-ink line-clamp-1">{r.title}</span>
+    },
+    { key: 'applicant_name', label: 'Applicant / Assignee', render: (r) => r.applicant_name || r.assignee || 'University of Ruhuna' },
+    { key: 'filing_date', label: 'Filing Date', render: (r) => r.filing_date || '—' },
+    { key: 'status', label: 'Application Status', render: (r) => <StatusDot status={r.status} /> },
+    {
+      key: 'actions',
+      label: 'Actions',
+      render: (r) => (
+        <div className="flex gap-2">
+          <Button
+            variant="ghost"
+            onClick={() => { setSelectedPatent(r); setActiveDashboardTab('tracking'); }}
+            className="py-1 px-2.5 text-xs text-indigo"
+          >
+            Track Status
+          </Button>
+          {(r.status === 'drafting' || r.is_draft) && (
+            <Button
+              variant="outline"
+              onClick={() => resumeDraft(r)}
+              className="py-1 px-2.5 text-xs"
+            >
+              Resume Draft
+            </Button>
+          )}
+        </div>
+      )
+    }
+  ]
+
+  // If in wizard mode, render PatentApplicationWizard
+  if (viewMode === 'wizard') {
+    return (
+      <PatentApplicationWizard
+        initialData={wizardDraft}
+        onComplete={() => {
+          setViewMode('dashboard')
+          setWizardDraft(null)
+          loadPatents()
+        }}
+        onCancel={() => {
+          setViewMode('dashboard')
+          setWizardDraft(null)
+        }}
+      />
+    )
   }
 
   return (
     <>
       <PageHeader
-        title="Patent Portfolio"
-        description="Portfolio-level view with detailed timeline, critical due dates, and jurisdictional status monitoring."
+        title="Patent Filing & Application Management Portal"
+        description="Comprehensive portal for filing new invention patents, tracking prosecution status, managing draft filings, and accessing payment receipts & documents."
         icon={
-          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <svg className="w-5 h-5 text-indigo" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
           </svg>
         }
-        action={<Button onClick={() => setOpenCreateModal(true)}>+ Initialize Case</Button>}
+        action={
+          <Button onClick={() => { setWizardDraft(null); setViewMode('wizard'); }} className="shadow-lg bg-indigo text-white font-bold">
+            + Start Patent Application
+          </Button>
+        }
       />
 
-      {/* Selected Patent Details Section (Figma redrawn premium drawer) */}
-      {selectedPatent && (
-        <div className="bg-surface border border-line rounded-2xl p-6 shadow-xs mb-8 animate-fade-in">
-          <div className="flex flex-col md:flex-row items-start justify-between gap-4 border-b border-line pb-4 mb-4">
-            <div>
-              <span className="text-[10px] font-extrabold uppercase tracking-wider text-indigo bg-indigo-light px-2.5 py-0.5 rounded-full">
-                {selectedPatent.patent_number}
+      {/* Dashboard Navigation Tabs */}
+      <div className="flex items-center gap-1 border-b border-line mb-6 overflow-x-auto pb-1 text-xs font-semibold">
+        {[
+          { id: 'my_applications', label: 'My Applications', count: patents.length },
+          { id: 'drafts', label: 'Draft Applications', count: draftPatents.length },
+          { id: 'submitted', label: 'Submitted Applications', count: submittedPatents.length },
+          { id: 'tracking', label: 'Application Status & Tracking' },
+          { id: 'messages', label: 'Messages & Notifications', badge: '2 New' },
+          { id: 'payments', label: 'Payments & Receipts' },
+          { id: 'documents', label: 'Download Documents' },
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveDashboardTab(tab.id)}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl transition-all whitespace-nowrap ${
+              activeDashboardTab === tab.id
+                ? 'bg-indigo text-white font-bold shadow-xs'
+                : 'text-ink/60 hover:text-ink hover:bg-paper'
+            }`}
+          >
+            <span>{tab.label}</span>
+            {tab.count !== undefined && (
+              <span className={`px-2 py-0.5 rounded-full text-[10px] ${
+                activeDashboardTab === tab.id ? 'bg-white/20 text-white' : 'bg-paper text-ink/70'
+              }`}>
+                {tab.count}
               </span>
-              <h2 className="text-base font-bold text-ink mt-1.5">{selectedPatent.title}</h2>
-              <p className="text-[11px] text-ink/45 mt-0.5">Filing agent: {selectedPatent.attorney}</p>
-            </div>
+            )}
+            {tab.badge && (
+              <span className="px-2 py-0.5 rounded-full text-[10px] bg-rose-500 text-white font-bold">
+                {tab.badge}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
 
-            <div className="flex items-center gap-3">
-              <Button variant="ghost" onClick={() => setShowTimelineForm(true)} className="py-1 px-3 text-xs">
-                Log Event
-              </Button>
-              <Select
-                value={selectedPatent.status}
-                onChange={(e) => handleStatusChange(e.target.value)}
-                disabled={statusUpdating}
-                className="py-1 px-2 text-xs"
-              >
-                <option value="drafting">Drafting</option>
-                <option value="office_action">Office Action</option>
-                <option value="filed">Filed</option>
-                <option value="granted">Granted</option>
-              </Select>
+      {/* TAB CONTENT: MY APPLICATIONS */}
+      {activeDashboardTab === 'my_applications' && (
+        <div className="space-y-6">
+          <DataTable
+            columns={columns}
+            data={patents}
+            loading={loading}
+            searchable
+            searchKeys={['title', 'patent_number', 'applicant_name', 'status']}
+          />
+        </div>
+      )}
+
+      {/* TAB CONTENT: DRAFT APPLICATIONS */}
+      {activeDashboardTab === 'drafts' && (
+        <div className="space-y-4">
+          <div className="flex justify-between items-center bg-amber-50 border border-amber-200 p-4 rounded-2xl">
+            <div>
+              <h3 className="font-bold text-amber-900 text-sm">Saved In-Progress Draft Applications</h3>
+              <p className="text-xs text-amber-700 mt-0.5">Resume saved patent specifications anytime without losing entered details.</p>
             </div>
+            <Button onClick={() => { setWizardDraft(null); setViewMode('wizard'); }} className="text-xs">
+              + New Application
+            </Button>
           </div>
 
-          {/* Sub-tabs */}
-          <div className="flex border-b border-line gap-2 mb-5">
-            {[
-              { id: 'overview', label: 'Overview' },
-              { id: 'timeline', label: 'Legal Timeline' },
-              { id: 'documents', label: 'Documents' },
-              { id: 'stakeholders', label: 'Stakeholders' },
-              { id: 'financials', label: 'Financials' },
-              { id: 'audit', label: 'Audit Trail' }
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setSelectedTab(tab.id)}
-                className={`pb-2.5 text-xs font-bold transition-all relative border-b-2 px-1 cursor-pointer ${selectedTab === tab.id
-                    ? 'border-indigo text-indigo font-extrabold'
-                    : 'border-transparent text-ink/50 hover:text-ink'
-                  }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Tabs content */}
-          {selectedTab === 'overview' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fade-in">
-              <div className="space-y-4">
-                <h4 className="text-xs font-bold text-ink uppercase tracking-wider">Case Overview</h4>
-                <div className="grid grid-cols-2 gap-4 text-xs">
-                  <div>
-                    <span className="text-ink/45">Jurisdiction</span>
-                    <p className="font-bold text-ink/80 mt-0.5">{selectedPatent.jurisdiction}</p>
-                  </div>
-                  <div>
-                    <span className="text-ink/45">Assignee</span>
-                    <p className="font-bold text-ink/80 mt-0.5">{selectedPatent.assignee}</p>
-                  </div>
-                  <div>
-                    <span className="text-ink/45">Filing Date</span>
-                    <p className="font-bold text-ink/80 mt-0.5 tabular">{selectedPatent.filing_date || '—'}</p>
-                  </div>
-                  <div>
-                    <span className="text-ink/45">Next Due Date</span>
-                    <p className="font-bold text-ink/80 mt-0.5 tabular">{selectedPatent.next_due_date || '—'}</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Advanced Metadata collapsible block */}
-              <div className="bg-paper border border-line rounded-xl p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-[10px] font-bold text-ink/50 uppercase tracking-wider">Advanced Metadata</h4>
-                  <button
-                    onClick={() => setShowAdvanced(!showAdvanced)}
-                    className="text-[10px] text-indigo font-bold hover:underline cursor-pointer"
-                  >
-                    {showAdvanced ? 'Hide metadata' : 'Show metadata'}
-                  </button>
-                </div>
-                {showAdvanced && (
-                  <div className="text-xs space-y-2.5 text-ink/70 animate-slide-down">
-                    <p>{selectedPatent.claims_text || 'No claims summary extracted.'}</p>
-                    <p className="italic text-ink/50 border-t border-line/50 pt-2">
-                      {selectedPatent.legal_notes || 'No attorney annotations logged.'}
-                    </p>
-                  </div>
-                )}
-              </div>
+          {draftPatents.length === 0 ? (
+            <div className="p-8 text-center bg-paper rounded-2xl border border-line">
+              <p className="text-xs text-ink/50">No saved draft applications found.</p>
             </div>
-          )}
-
-          {selectedTab === 'timeline' && (
-            <div className="space-y-4 animate-fade-in">
-              <h4 className="text-xs font-bold text-ink uppercase tracking-wider">Prosecution Timeline Events</h4>
-              {timelineLoading ? (
-                <Skeleton lines={3} />
-              ) : timeline.length === 0 ? (
-                <p className="text-xs text-ink/40 italic">No events logged in the timeline.</p>
-              ) : (
-                <div className="relative pl-6 border-l-2 border-line space-y-5 py-2">
-                  {timeline.map((evt, i) => (
-                    <div key={i} className="relative">
-                      <div className="absolute -left-[31px] top-0.5 w-4 h-4 rounded-full bg-indigo border-4 border-surface shadow-xs" />
-                      <span className="text-[10px] text-ink/35 font-bold tabular">{evt.event_date}</span>
-                      <h5 className="text-xs font-bold text-ink/80 mt-0.5">{evt.event_title}</h5>
-                      {evt.notes && <p className="text-xs text-ink/50 mt-1">{evt.notes}</p>}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {selectedTab === 'documents' && (
-            <div className="space-y-4 animate-fade-in">
-              <div className="flex items-center justify-between">
-                <h4 className="text-xs font-bold text-ink uppercase tracking-wider">Linked Case Documents</h4>
-                <Button variant="ghost" onClick={() => setShowDocUploadModal(true)} className="py-1 px-3 text-xs">
-                  Upload Doc
-                </Button>
-              </div>
-              <div className="space-y-2">
-                {uploadedDocs.map((doc, i) => (
-                  <div key={i} className="flex items-center justify-between p-3 border border-line rounded-xl bg-paper/20">
-                    <div className="flex items-center gap-2.5">
-                      <svg className="w-5 h-5 text-ink/30 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                      </svg>
-                      <div>
-                        <p className="text-xs font-bold text-ink/85">{doc.name}</p>
-                        <p className="text-[10px] text-ink/40 font-semibold mt-0.5">{doc.size} · Uploaded {doc.date}</p>
-                      </div>
-                    </div>
-                    <button className="text-xs text-indigo font-bold hover:underline cursor-pointer">Open</button>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {draftPatents.map((draft) => (
+                <div key={draft.id} className="p-5 rounded-2xl border border-line bg-surface shadow-xs hover:border-indigo transition-all">
+                  <div className="flex justify-between items-start mb-2">
+                    <span className="text-[10px] font-extrabold uppercase bg-amber-100 text-amber-800 px-2.5 py-0.5 rounded-full">
+                      Incomplete Draft
+                    </span>
+                    <span className="text-xs text-ink/50">Last saved: {draft.filing_date || 'Today'}</span>
                   </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {selectedTab === 'stakeholders' && (
-            <div className="space-y-3 animate-fade-in text-xs">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full bg-indigo-light text-indigo flex items-center justify-center font-bold">AB</div>
-                <div>
-                  <p className="font-bold text-ink">Aisha Bennett</p>
-                  <p className="text-[10px] text-ink/40">Filing Attorney & IP Manager</p>
+                  <h3 className="font-bold text-ink text-sm mb-1">{draft.title || 'Untitled Draft Invention'}</h3>
+                  <p className="text-xs text-ink/60 line-clamp-2 mb-4">{draft.short_description || draft.claims_text || 'No description entered yet...'}</p>
+                  <Button onClick={() => resumeDraft(draft)} className="w-full text-xs py-2">
+                    Resume Filing Application →
+                  </Button>
                 </div>
-              </div>
-              <div className="flex items-center gap-3 border-t border-line/40 pt-2">
-                <div className="w-8 h-8 rounded-full bg-teal-light text-teal flex items-center justify-center font-bold">TTC</div>
-                <div>
-                  <p className="font-bold text-ink">University of Ruhuna TTC</p>
-                  <p className="text-[10px] text-ink/40">Assignee Organization</p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {selectedTab === 'financials' && (
-            <div className="space-y-3 text-xs animate-fade-in">
-              <div className="flex justify-between border-b border-line/30 pb-2">
-                <span className="text-ink/50">Allocated IP Budget</span>
-                <span className="font-bold text-ink/80 tabular">Rs. {selectedPatent.budget?.toLocaleString() || '0'}</span>
-              </div>
-              <div className="flex justify-between border-b border-line/30 pb-2">
-                <span className="text-ink/50">Attorney Fees Paid</span>
-                <span className="font-bold text-ink/80 tabular">Rs. 12,500</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-ink/50">Remaining Budget</span>
-                <span className="font-bold text-teal tabular">Rs. {(selectedPatent.budget - 12500 || 0).toLocaleString()}</span>
-              </div>
-            </div>
-          )}
-
-          {selectedTab === 'audit' && (
-            <div className="text-xs space-y-2 text-ink/50 animate-fade-in">
-              <p>· Case initialized by System Admin on 2026-07-13 08:30</p>
-              <p>· Status promoted from Drafting to {selectedPatent.status} on 2026-07-13 08:35</p>
+              ))}
             </div>
           )}
         </div>
       )}
 
-      {/* Log Timeline Event Modal */}
-      <Modal open={showTimelineForm} onClose={() => setShowTimelineForm(false)} title="Log Legal Timeline Event">
+      {/* TAB CONTENT: SUBMITTED APPLICATIONS */}
+      {activeDashboardTab === 'submitted' && (
+        <div className="space-y-6">
+          <DataTable
+            columns={columns}
+            data={submittedPatents}
+            loading={loading}
+            searchable
+            searchKeys={['title', 'patent_number', 'status']}
+          />
+        </div>
+      )}
+
+      {/* TAB CONTENT: APPLICATION STATUS & TRACKING */}
+      {activeDashboardTab === 'tracking' && (
+        <div className="space-y-6 animate-fade-in">
+          {selectedPatent ? (
+            <div className="bg-surface border border-line rounded-2xl p-6 shadow-xs">
+              
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-line pb-4 mb-6">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-black uppercase bg-indigo/10 text-indigo px-3 py-1 rounded-full">
+                      {selectedPatent.patent_number}
+                    </span>
+                    <span className="text-xs font-semibold text-ink/60">
+                      {selectedPatent.patent_type || 'Utility Patent'}
+                    </span>
+                  </div>
+                  <h2 className="text-lg font-bold text-ink mt-2">{selectedPatent.title}</h2>
+                  <p className="text-xs text-ink/50 mt-0.5">
+                    Applicant: {selectedPatent.applicant_name || selectedPatent.assignee} • Filing Date: {selectedPatent.filing_date || '2026-07-22'}
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Select
+                    value={selectedPatent.status}
+                    onChange={(e) => handleStatusChange(e.target.value)}
+                    disabled={statusUpdating}
+                    className="py-1 px-3 text-xs"
+                  >
+                    <option value="drafting">Drafting</option>
+                    <option value="under_review">Under Formality Review</option>
+                    <option value="office_action">Office Action Issued</option>
+                    <option value="filed">Formally Filed</option>
+                    <option value="granted">Patent Granted</option>
+                  </Select>
+                  <Button variant="ghost" onClick={() => setShowTimelineForm(true)} className="py-1.5 px-3 text-xs">
+                    + Log Event
+                  </Button>
+                </div>
+              </div>
+
+              {/* Status Progression Pipeline */}
+              <div className="mb-8">
+                <h3 className="text-xs font-bold text-ink uppercase tracking-wider mb-4">Official Patent Examination Progress</h3>
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-2 text-center">
+                  {[
+                    { stage: '1. Submitted', key: 'under_review', desc: 'Formality check' },
+                    { stage: '2. Formality Review', key: 'under_review', desc: 'Document verification' },
+                    { stage: '3. Technical Search', key: 'filed', desc: 'Prior art examination' },
+                    { stage: '4. Office Action', key: 'office_action', desc: 'Legal response pending' },
+                    { stage: '5. Final Grant', key: 'granted', desc: 'Certificate issued' }
+                  ].map((st, i) => (
+                    <div
+                      key={i}
+                      className={`p-3 rounded-xl border text-xs transition-all ${
+                        selectedPatent.status === st.key
+                          ? 'border-indigo bg-indigo/10 font-bold shadow-xs'
+                          : 'border-line bg-paper text-ink/50'
+                      }`}
+                    >
+                      <div className="font-bold text-ink">{st.stage}</div>
+                      <div className="text-[10px] text-ink/60 mt-0.5">{st.desc}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Timeline Log */}
+              <div>
+                <h3 className="text-xs font-bold text-ink uppercase tracking-wider mb-3">Prosecution Log & Registry History</h3>
+                {timelineLoading ? (
+                  <p className="text-xs text-ink/50">Loading timeline history...</p>
+                ) : timeline.length === 0 ? (
+                  <div className="p-4 rounded-xl bg-paper border border-line text-xs text-ink/50">
+                    No timeline events logged yet. Click "+ Log Event" to add a formal office notice or action.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {timeline.map((ev, idx) => (
+                      <div key={idx} className="p-3 rounded-xl border border-line bg-paper flex items-start gap-3 text-xs">
+                        <span className="w-2 h-2 rounded-full bg-indigo mt-1.5 shrink-0"></span>
+                        <div>
+                          <span className="font-bold text-ink">{ev.event_title}</span>
+                          <span className="text-[10px] text-ink/50 ml-2">({ev.event_date})</span>
+                          {ev.notes && <p className="text-ink/70 mt-1">{ev.notes}</p>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+            </div>
+          ) : (
+            <p className="text-xs text-ink/50">Select an application from "My Applications" tab to track status.</p>
+          )}
+        </div>
+      )}
+
+      {/* TAB CONTENT: MESSAGES & NOTIFICATIONS */}
+      {activeDashboardTab === 'messages' && (
+        <div className="space-y-4">
+          <div className="bg-surface border border-line rounded-2xl p-5 space-y-3">
+            <h3 className="font-bold text-sm text-ink border-b border-line pb-2">Official Patent Office Communications</h3>
+            
+            <div className="p-4 rounded-xl bg-indigo/5 border border-indigo/20 space-y-1">
+              <div className="flex justify-between items-center text-xs">
+                <span className="font-bold text-indigo">Formality Examination Completed</span>
+                <span className="text-[10px] text-ink/50">Yesterday 14:30</span>
+              </div>
+              <p className="text-xs text-ink/70">
+                Your application specification and drawings for case PAT-2026-8942 passed formality verification. Proceeded to technical search.
+              </p>
+            </div>
+
+            <div className="p-4 rounded-xl bg-paper border border-line space-y-1">
+              <div className="flex justify-between items-center text-xs">
+                <span className="font-bold text-ink">Filing Fee Payment Receipt Confirmed</span>
+                <span className="text-[10px] text-ink/50">2026-07-20</span>
+              </div>
+              <p className="text-xs text-ink/70">
+                Payment receipt #PAY-9921 for USD $225.00 has been verified and posted to registry records.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB CONTENT: PAYMENTS & RECEIPTS */}
+      {activeDashboardTab === 'payments' && (
+        <div className="space-y-4">
+          <div className="bg-surface border border-line rounded-2xl p-5 space-y-4">
+            <h3 className="font-bold text-sm text-ink border-b border-line pb-2">Application Fee Payment History</h3>
+            
+            <div className="p-4 rounded-xl bg-paper border border-line flex items-center justify-between text-xs">
+              <div>
+                <span className="font-bold text-ink block">Filing Fee - Utility Patent Application</span>
+                <span className="text-[10px] text-ink/50">Invoice #INV-2026-881 • Paid via Credit Card</span>
+              </div>
+              <div className="text-right">
+                <span className="font-black text-emerald-600 block text-sm">$225.00 USD</span>
+                <button onClick={() => addToast('Downloading Fee Receipt PDF...', 'info')} className="text-[11px] text-indigo font-bold hover:underline">
+                  📥 Download Receipt PDF
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB CONTENT: DOWNLOAD SUBMITTED DOCUMENTS */}
+      {activeDashboardTab === 'documents' && (
+        <div className="space-y-4">
+          <div className="bg-surface border border-line rounded-2xl p-5 space-y-4">
+            <h3 className="font-bold text-sm text-ink border-b border-line pb-2">Central Application Documents Vault</h3>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {[
+                { name: 'Technical_Drawings_Complete_v1.pdf', size: '3.2 MB', date: '2026-07-22' },
+                { name: 'Patent_Claims_Specification.pdf', size: '1.8 MB', date: '2026-07-22' },
+                { name: 'Inventor_Declaration_Form_Signed.pdf', size: '740 KB', date: '2026-07-22' },
+                { name: 'Prior_Art_Comparison_Matrix.docx', size: '1.1 MB', date: '2026-07-21' }
+              ].map((doc, i) => (
+                <div key={i} className="p-4 rounded-xl border border-line bg-paper flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-3">
+                    <span className="text-xl">📄</span>
+                    <div>
+                      <p className="font-bold text-ink">{doc.name}</p>
+                      <p className="text-[10px] text-ink/50">{doc.size} • Uploaded {doc.date}</p>
+                    </div>
+                  </div>
+                  <Button variant="ghost" onClick={() => addToast(`Downloading ${doc.name}...`, 'info')} className="text-xs py-1 px-3">
+                    Download
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Timeline Modal */}
+      <Modal isOpen={showTimelineForm} onClose={() => setShowTimelineForm(false)} title="Log Patent Prosecution Event">
         <form onSubmit={handleTimelineEventSubmit} className="space-y-4">
-          <Input
-            label="Event Description"
-            placeholder="e.g. Received filing search report"
-            value={newEvent.event_title}
-            onChange={(e) => setNewEvent({ ...newEvent, event_title: e.target.value })}
-            required
-          />
-          <Input
-            label="Event Date"
-            type="date"
-            value={newEvent.event_date}
-            onChange={(e) => setNewEvent({ ...newEvent, event_date: e.target.value })}
-            required
-          />
-          <label className="block text-sm">
-            <span className="text-ink/70 mb-1.5 block font-medium text-xs uppercase tracking-wider">Notes (Optional)</span>
+          <div>
+            <label className="block text-xs font-medium text-ink/70 mb-1">Event Title *</label>
+            <Input
+              value={newEvent.event_title}
+              onChange={(e) => setNewEvent({ ...newEvent, event_title: e.target.value })}
+              placeholder="e.g. Non-Final Office Action Received"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-ink/70 mb-1">Event Date *</label>
+            <Input
+              type="date"
+              value={newEvent.event_date}
+              onChange={(e) => setNewEvent({ ...newEvent, event_date: e.target.value })}
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-ink/70 mb-1">Notes / Description</label>
             <textarea
-              className="w-full rounded-xl border border-line px-3.5 py-2.5 outline-none bg-surface text-ink text-xs focus-glow transition-all duration-200"
-              rows={3}
-              placeholder="Provide event annotations..."
               value={newEvent.notes}
               onChange={(e) => setNewEvent({ ...newEvent, notes: e.target.value })}
-            />
-          </label>
-          <Button type="submit" className="w-full">Save Event Log</Button>
-        </form>
-      </Modal>
-
-      {/* Document Upload Simulation Modal */}
-      <Modal open={showDocUploadModal} onClose={() => setShowDocUploadModal(false)} title="Upload Specification Document">
-        <form onSubmit={handleDocUpload} className="space-y-4">
-          <Input
-            label="Document Name"
-            placeholder="e.g. Claims_Amendment_Draft_v2.pdf"
-            value={newDocName}
-            onChange={(e) => setNewDocName(e.target.value)}
-            required
-          />
-          <div className="border border-dashed border-line rounded-xl p-8 text-center bg-paper/30 hover:bg-paper/50 cursor-pointer transition-colors">
-            <svg className="w-8 h-8 text-ink/20 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-            </svg>
-            <span className="text-xs font-bold text-ink/70 block">Select specification file from directory</span>
-            <span className="text-[10px] text-ink/40 mt-1 block">PDF, DOCX, XLSX formats supported (Max 10MB)</span>
-          </div>
-          <Button type="submit" className="w-full">Attach Case File</Button>
-        </form>
-      </Modal>
-
-      {/* Create Patent Modal */}
-      <Modal open={openCreateModal} onClose={() => setOpenCreateModal(null)} title="Initialize Patent Case">
-        <form onSubmit={handlePatentCreate} className="space-y-4">
-          <Input
-            label="Patent Title"
-            placeholder="e.g. Adaptive edge AI scheduler"
-            value={newPatent.title}
-            onChange={(e) => setNewPatent({ ...newPatent, title: e.target.value })}
-            required
-          />
-          <div className="grid grid-cols-2 gap-4">
-            <Input
-              label="Case Number (ID)"
-              placeholder="e.g. PAT-8841"
-              value={newPatent.patent_number}
-              onChange={(e) => setNewPatent({ ...newPatent, patent_number: e.target.value })}
-              required
-            />
-            <Select
-              label="Jurisdiction"
-              value={newPatent.jurisdiction}
-              onChange={(e) => setNewPatent({ ...newPatent, jurisdiction: e.target.value })}
-              required
-            >
-              <option value="US / PCT">US / PCT</option>
-              <option value="EP">European Patent Office (EP)</option>
-              <option value="IN">Indian Patent Office (IN)</option>
-            </Select>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <Input
-              label="Lead Attorney"
-              placeholder="e.g. Aisha Bennett"
-              value={newPatent.attorney}
-              onChange={(e) => setNewPatent({ ...newPatent, attorney: e.target.value })}
-              required
-            />
-            <Input
-              label="IP budget Allocation"
-              type="number"
-              placeholder="e.g. 50000"
-              value={newPatent.budget}
-              onChange={(e) => setNewPatent({ ...newPatent, budget: e.target.value })}
-              required
-            />
-          </div>
-          <label className="block text-sm">
-            <span className="text-ink/70 mb-1.5 block font-medium text-xs uppercase tracking-wider">Claims Summary</span>
-            <textarea
-              className="w-full rounded-xl border border-line px-3.5 py-2.5 outline-none bg-surface text-ink text-xs focus-glow transition-all duration-200"
+              className="w-full rounded-xl border border-line bg-surface p-3 text-xs text-ink focus:border-indigo focus:outline-none"
               rows={3}
-              placeholder="Provide summary description of key claim points..."
-              value={newPatent.claims_text}
-              onChange={(e) => setNewPatent({ ...newPatent, claims_text: e.target.value })}
             />
-          </label>
-          <label className="block text-sm">
-            <span className="text-ink/70 mb-1.5 block font-medium text-xs uppercase tracking-wider">Legal Notes</span>
-            <textarea
-              className="w-full rounded-xl border border-line px-3.5 py-2.5 outline-none bg-surface text-ink text-xs focus-glow transition-all duration-200"
-              rows={2}
-              placeholder="Log initial attorney notes..."
-              value={newPatent.legal_notes}
-              onChange={(e) => setNewPatent({ ...newPatent, legal_notes: e.target.value })}
-            />
-          </label>
-          <Button type="submit" className="w-full" loading={createSubmitting}>Initialize Case Portfolio</Button>
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="ghost" onClick={() => setShowTimelineForm(false)}>Cancel</Button>
+            <Button type="submit">Log Event</Button>
+          </div>
         </form>
       </Modal>
 
-      {/* Patents List */}
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-xs font-bold text-ink uppercase tracking-wider">Patent Portfolio Cases</h3>
-      </div>
-      <DataTable
-        columns={columns}
-        rows={patents}
-        loading={loading}
-        onRowClick={(row) => setSelectedPatent(row)}
-      />
     </>
   )
 }

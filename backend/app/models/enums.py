@@ -55,3 +55,34 @@ class ViolationSeverity(str, Enum):
     medium = "medium"
     high = "high"
     critical = "critical"
+
+
+class PatentStatus(str, Enum):
+    drafting = "drafting"
+    under_review = "under_review"
+    filed = "filed"
+    office_action = "office_action"
+    granted = "granted"
+    rejected = "rejected"
+    abandoned = "abandoned"
+
+
+class DisclosureStatus(str, Enum):
+    under_review = "under_review"
+    needs_revision = "needs_revision"
+    ready_for_filing = "ready_for_filing"
+    approved = "approved"
+    rejected = "rejected"
+
+
+class DeadlineStatus(str, Enum):
+    pending = "pending"
+    completed = "completed"
+    overdue = "overdue"
+
+
+class LicenseStatus(str, Enum):
+    active = "active"
+    pending = "pending"
+    expired = "expired"
+    terminated = "terminated"

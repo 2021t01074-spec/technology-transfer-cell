@@ -1,13 +1,14 @@
 from datetime import date, datetime
 from typing import Optional
 from sqlmodel import SQLModel, Field
+from app.models.enums import DeadlineStatus
 
 class DeadlineBase(SQLModel):
     record_id: str # e.g. PAT-8841, LIC-233, DISC-1021
     title: str
     due_date: date
     severity: str = Field(default="medium") # low, moderate, high, critical
-    status: str = Field(default="pending") # pending, completed, overdue
+    status: DeadlineStatus = Field(default=DeadlineStatus.pending)
     assigned_to: Optional[str] = None
 
 class Deadline(DeadlineBase, table=True):
@@ -23,4 +24,4 @@ class DeadlineRead(DeadlineBase):
     created_at: datetime
 
 class DeadlineStatusUpdate(SQLModel):
-    status: str
+    status: DeadlineStatus

@@ -19,6 +19,34 @@ def init_db():
     )
     SQLModel.metadata.create_all(engine)
     
+    # Ensure column migrations for patents table
+    from sqlmodel import text
+    with Session(engine) as session:
+        migrations = [
+            "ALTER TABLE patents ADD COLUMN IF NOT EXISTS patent_type VARCHAR DEFAULT 'Utility Patent';",
+            "ALTER TABLE patents ADD COLUMN IF NOT EXISTS applicant_name VARCHAR;",
+            "ALTER TABLE patents ADD COLUMN IF NOT EXISTS applicant_email VARCHAR;",
+            "ALTER TABLE patents ADD COLUMN IF NOT EXISTS applicant_phone VARCHAR;",
+            "ALTER TABLE patents ADD COLUMN IF NOT EXISTS address VARCHAR;",
+            "ALTER TABLE patents ADD COLUMN IF NOT EXISTS nationality VARCHAR;",
+            "ALTER TABLE patents ADD COLUMN IF NOT EXISTS short_description TEXT;",
+            "ALTER TABLE patents ADD COLUMN IF NOT EXISTS detailed_description TEXT;",
+            "ALTER TABLE patents ADD COLUMN IF NOT EXISTS problem_solved TEXT;",
+            "ALTER TABLE patents ADD COLUMN IF NOT EXISTS benefits TEXT;",
+            "ALTER TABLE patents ADD COLUMN IF NOT EXISTS inventors_json TEXT;",
+            "ALTER TABLE patents ADD COLUMN IF NOT EXISTS documents_json TEXT;",
+            "ALTER TABLE patents ADD COLUMN IF NOT EXISTS payment_status VARCHAR DEFAULT 'unpaid';",
+            "ALTER TABLE patents ADD COLUMN IF NOT EXISTS payment_amount FLOAT DEFAULT 0.0;",
+            "ALTER TABLE patents ADD COLUMN IF NOT EXISTS declaration_accepted BOOLEAN DEFAULT FALSE;",
+            "ALTER TABLE patents ADD COLUMN IF NOT EXISTS is_draft BOOLEAN DEFAULT FALSE;"
+        ]
+        for query in migrations:
+            try:
+                session.exec(text(query))
+            except Exception:
+                pass
+        session.commit()
+    
     # Seed data if tables are empty
     with Session(engine) as session:
         seed_data(session)

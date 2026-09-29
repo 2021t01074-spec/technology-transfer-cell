@@ -1,6 +1,7 @@
 from datetime import date, datetime
 from typing import Optional
 from sqlmodel import SQLModel, Field
+from app.models.enums import LicenseStatus
 
 class LicenseBase(SQLModel):
     title: str
@@ -8,7 +9,7 @@ class LicenseBase(SQLModel):
     licensee_name: str
     royalty_rate: Optional[float] = None
     revenue_ytd: Optional[float] = None
-    status: str = Field(default="active") # active, pending, expired, terminated
+    status: LicenseStatus = Field(default=LicenseStatus.active)
     signing_date: Optional[date] = None
     expiry_date: Optional[date] = None
 
@@ -27,4 +28,4 @@ class LicenseRead(LicenseBase):
     created_at: datetime
 
 class LicenseStatusUpdate(SQLModel):
-    status: str
+    status: LicenseStatus

@@ -210,7 +210,7 @@ export default function DeadlinesPage() {
       </div>
 
       {/* Add Alert Modal */}
-      <Modal open={open} onClose={() => setOpen(false)} title="New Deadline Reminder">
+      <Modal isOpen={open} onClose={() => setOpen(false)} title="New Statutory Patent Deadline Reminder">
         <form onSubmit={handleCreate} className="space-y-4">
           <Input
             label="Record Reference (ID)"
@@ -256,7 +256,7 @@ export default function DeadlinesPage() {
       </Modal>
 
       {/* Configure Escalation Modal */}
-      <Modal open={showConfigModal} onClose={() => setShowConfigModal(false)} title="Configure Escalation Reminders">
+      <Modal isOpen={showConfigModal} onClose={() => setShowConfigModal(false)} title="Configure Statutory Patent Escalation Reminders">
         <form onSubmit={handleSaveEscalationConfig} className="space-y-4">
           <Input
             label="Lead Times configuration"

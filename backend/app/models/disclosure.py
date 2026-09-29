@@ -1,6 +1,7 @@
 from datetime import date, datetime
 from typing import Optional
 from sqlmodel import SQLModel, Field
+from app.models.enums import DisclosureStatus
 
 class DisclosureBase(SQLModel):
     title: str
@@ -8,7 +9,7 @@ class DisclosureBase(SQLModel):
     department: str
     primary_inventor: str
     reviewer: Optional[str] = None
-    status: str = Field(default="under_review") # under_review, needs_revision, ready_for_filing
+    status: DisclosureStatus = Field(default=DisclosureStatus.under_review)
     due_date: Optional[date] = None
 
 class InventionDisclosure(DisclosureBase, table=True):
@@ -26,4 +27,4 @@ class DisclosureRead(DisclosureBase):
     created_at: datetime
 
 class DisclosureStatusUpdate(SQLModel):
-    status: str
+    status: DisclosureStatus

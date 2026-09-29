@@ -117,8 +117,8 @@ export default function DisclosuresPage() {
   return (
     <>
       <PageHeader
-        title="Invention Disclosures"
-        description="Capture new disclosures, route them for review, and promote approved records into patent cases."
+        title="Patent Disclosures & Inventions"
+        description="Official patent disclosure portal: capture new patent invention filings, route through university IP review, and promote approved applications to active patent prosecution cases."
         icon={
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
@@ -130,7 +130,7 @@ export default function DisclosuresPage() {
         {/* Step-by-Step Intake Form */}
         <div className="lg:col-span-2 bg-surface border border-line rounded-2xl p-6 shadow-xs relative">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-xs font-bold text-ink uppercase tracking-wider">Create New Disclosure</h3>
+            <h3 className="text-xs font-bold text-ink uppercase tracking-wider">Submit Patent Disclosure</h3>
             <span className="text-[10px] font-extrabold uppercase tracking-wider bg-indigo-light text-indigo px-2.5 py-0.5 rounded-full">
               Step {step} of 3
             </span>
@@ -147,14 +147,14 @@ export default function DisclosuresPage() {
             {step === 1 && (
               <div className="space-y-4 animate-fade-in">
                 <Input
-                  label="Disclosure Title"
-                  placeholder="e.g. Energy-aware orchestration scheduler"
-                  value={form.title}
-                  onChange={(e) => setForm({ ...form, title: e.target.value })}
+                  label="Applicant Full Name *"
+                  placeholder="e.g. Dr. Nimal Perera"
+                  value={form.primary_inventor}
+                  onChange={(e) => setForm({ ...form, primary_inventor: e.target.value })}
                   required
                 />
                 <Select
-                  label="Department"
+                  label="Department *"
                   value={form.department}
                   onChange={(e) => setForm({ ...form, department: e.target.value })}
                 >
@@ -164,20 +164,20 @@ export default function DisclosuresPage() {
                   <option value="Mechanical and Manufacturing Engineering">Mechanical and Manufacturing Engineering</option>
                   <option value="Computer Engineering">Computer Engineering</option>
                 </Select>
+                <Input
+                  label="Patent Invention Title *"
+                  placeholder="e.g. Adaptive edge AI scheduler for smart microgrids"
+                  value={form.title}
+                  onChange={(e) => setForm({ ...form, title: e.target.value })}
+                  required
+                />
               </div>
             )}
 
             {step === 2 && (
               <div className="space-y-4 animate-fade-in">
                 <Input
-                  label="Primary Inventor"
-                  placeholder="e.g. Dr. Meera Patel"
-                  value={form.primary_inventor}
-                  onChange={(e) => setForm({ ...form, primary_inventor: e.target.value })}
-                  required
-                />
-                <Input
-                  label="Assigned Reviewer"
+                  label="Assigned Legal Reviewer"
                   placeholder="e.g. Aisha Bennett"
                   value={form.reviewer}
                   onChange={(e) => setForm({ ...form, reviewer: e.target.value })}

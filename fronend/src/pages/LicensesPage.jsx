@@ -122,7 +122,7 @@ export default function LicensesPage() {
       />
 
       {/* License Details Modal */}
-      <Modal open={!!selectedLicense} onClose={() => setSelectedLicense(null)} title="Licensing Contract Details">
+      <Modal isOpen={!!selectedLicense} onClose={() => setSelectedLicense(null)} title="Licensing Contract Details">
         {selectedLicense && (
           <div className="space-y-4 text-xs">
             <div>
@@ -156,7 +156,7 @@ export default function LicensesPage() {
               </div>
               <Select
                 value={selectedLicense.status}
-                onChange={(e) => handleStatusChange(e.target.value)}
+                onChange={(e) => handleStatusUpdate(e.target.value)}
                 disabled={updatingStatus}
                 className="py-1 px-2 text-xs"
               >
@@ -171,7 +171,7 @@ export default function LicensesPage() {
       </Modal>
 
       {/* Create License Modal */}
-      <Modal open={open} onClose={() => setOpen(false)} title="New Licensing Contract">
+      <Modal isOpen={open} onClose={() => setOpen(false)} title="New Patent Licensing Contract">
         <form onSubmit={handleCreate} className="space-y-4">
           <Input
             label="License Title"

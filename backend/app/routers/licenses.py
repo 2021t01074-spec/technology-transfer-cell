@@ -4,6 +4,7 @@ from sqlmodel import Session, select
 from app.database import get_session
 from app.models.license import License, LicenseCreate, LicenseRead, LicenseStatusUpdate
 from app.models.user import User
+from app.models.enums import LicenseStatus
 from app.core.deps import get_current_user
 
 router = APIRouter(prefix="/licenses", tags=["IP Licensing"])
@@ -48,6 +49,8 @@ def update_license_status(
     license_item = session.get(License, license_id)
     if not license_item:
         raise HTTPException(status_code=404, detail="License not found")
+    if license_item.status == LicenseStatus.terminated and payload.status == LicenseStatus.active:
+        raise HTTPException(status_code=400, detail="Terminated licenses cannot be reactivated")
     license_item.status = payload.status
     session.add(license_item)
     session.commit()
