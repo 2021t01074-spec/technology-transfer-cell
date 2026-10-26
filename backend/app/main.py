@@ -14,8 +14,11 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="Technology Transfer Cell Intellectual Property Management System (TTC-IPMS)", lifespan=lifespan , root_path="/api")
-
+# Change it back to this:
+app = FastAPI(
+    title="Technology Transfer Cell Intellectual Property Management System (TTC-IPMS)", 
+    lifespan=lifespan
+)
 # Updated CORS to allow your live Vercel domain as well as localhost
 app.add_middleware(
     CORSMiddleware,

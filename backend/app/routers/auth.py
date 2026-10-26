@@ -6,7 +6,8 @@ from app.models.user import User, UserCreate, UserRead
 from app.core.security import hash_password, verify_password, create_access_token
 
 # CHANGED: Removed prefix="/auth" so it becomes /api/register and /api/login
-router = APIRouter(tags=["Auth"])
+# Change it back to this:
+router = APIRouter(prefix="/auth", tags=["Auth"])
 
 
 @router.post("/register", response_model=UserRead)
