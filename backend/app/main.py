@@ -16,29 +16,32 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Technology Transfer Cell Intellectual Property Management System (TTC-IPMS)", lifespan=lifespan)
 
+# Updated CORS to allow your live Vercel domain as well as localhost
 app.add_middleware(
     CORSMiddleware,
+    allow_origins=["https://ttc-fullstack.vercel.app", "http://localhost:5100", "http://127.0.0.1:5100"],
     allow_origin_regex=r"https?://(localhost|127\.0\.0\.1|\[::1\])(:\d+)?",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-app.include_router(auth.router)
-app.include_router(users.router)
-app.include_router(projects.router)
-app.include_router(agreements.router)
-app.include_router(mous.router)
-app.include_router(innovation_club.router)
-app.include_router(noticeboard.router)
-app.include_router(ipr_violations.router)
+# Added prefix="/api" to all routers
+app.include_router(auth.router, prefix="/api")
+app.include_router(users.router, prefix="/api")
+app.include_router(projects.router, prefix="/api")
+app.include_router(agreements.router, prefix="/api")
+app.include_router(mous.router, prefix="/api")
+app.include_router(innovation_club.router, prefix="/api")
+app.include_router(noticeboard.router, prefix="/api")
+app.include_router(ipr_violations.router, prefix="/api")
 
 # Register IPMS Routers
-app.include_router(disclosures.router)
-app.include_router(patents.router)
-app.include_router(deadlines.router)
-app.include_router(licenses.router)
-app.include_router(audit_logs.router)
+app.include_router(disclosures.router, prefix="/api")
+app.include_router(patents.router, prefix="/api")
+app.include_router(deadlines.router, prefix="/api")
+app.include_router(licenses.router, prefix="/api")
+app.include_router(audit_logs.router, prefix="/api")
 
 
 @app.get("/health")
