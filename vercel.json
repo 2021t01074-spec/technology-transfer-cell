@@ -1,7 +1,11 @@
 {
   "services": {
     "web": {
-      "root": "fronend/"
+      "root": "fronend/",
+      "routes": [
+        { "handle": "filesystem" },
+        { "src": "/(.*)", "dest": "/index.html" }
+      ]
     },
     "api": {
       "root": "backend/",
