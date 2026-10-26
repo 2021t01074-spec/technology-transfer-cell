@@ -1,26 +1,21 @@
 {
-  "builds": [
-    {
-      "src": "backend/app/main.py",
-      "use": "@vercel/python"
+  "services": {
+    "web": {
+      "root": "fronend/"
     },
-    {
-      "src": "fronend/package.json",
-      "use": "@vercel/static-build",
-      "config": { "distDir": "dist" }
+    "api": {
+      "root": "backend/",
+      "entrypoint": "app.main:app"
     }
-  ],
-  "routes": [
+  },
+  "rewrites": [
     {
-      "src": "/api/(.*)",
-      "dest": "/backend/app/main.py"
+      "source": "/api/(.*)",
+      "destination": { "service": "api" }
     },
     {
-      "handle": "filesystem"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/fronend/index.html"
+      "source": "/(.*)",
+      "destination": { "service": "web" }
     }
   ]
 }
